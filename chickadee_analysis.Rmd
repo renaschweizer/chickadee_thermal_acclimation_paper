@@ -1,0 +1,611 @@
+---
+title: "Analysis for Schweizer, et al., Submitted, Thermal acclimation in a non-migratory songbird occurs via changes to thermogenic capacity rate, but not conductance"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  html_notebook: default
+---
+
+We start by loading libraries and data. 
+
+```{r Load Libraries & Import Data}
+
+run_date <- format(Sys.Date(), "%d%b%Y")
+
+
+# load in all necessary libraries
+
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(ggplot2)
+library(emmeans)
+library(dplyr)
+
+setwd("~/Dropbox/chickadee_data/analysis_for_pub")
+
+# load in meta data with information for each sample
+bird_meta <- read.csv("~/Dropbox/chickadee_data/data_files/Respirometry_Metadata_simp_17Nov2021.csv")
+
+# made data subsets for each time point
+bird_meta_0wk<- bird_meta[bird_meta$Timepoint=="0wk",]
+
+bird_meta_3wk<- bird_meta[bird_meta$Timepoint=="3wk",]
+
+bird_meta_6wk<- bird_meta[bird_meta$Timepoint=="6wk",]
+
+```
+
+First, we'll do some exploratory analysis to test for effects of **mass** on **BMR** and **SMR**. 
+
+```{r Exploratory analysis of effect of mass on BMR & SMR}
+
+anova(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + (1|bird_meta$ID)))
+
+anova(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + (1|bird_meta$ID)))
+
+```
+
+We see that mass has a significant effect on BMR and SMR, so we will include mass as a covariate in our models. Next, let's test for an effect of **sex** on **BMR** and **SMR**. After including mass as a covariate, we might not expect an effect, since these birds were collected after the breeding season.
+
+```{r Exploratory analysis of effect of sex on BMR & SMR}
+
+anova(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + bird_meta$Sex + (1|bird_meta$ID)))
+
+anova(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + bird_meta$Sex  + (1|bird_meta$ID)))
+
+```
+
+We do not see a significant effect of sex, so we will not include it as a covariate in our analyses. Do we see a significant effect of **treatment** on **mass**? 
+
+```{r Exploratory analysis of effect of treatment*duration on mass}
+
+model1_mass <- lmer(bird_meta$Mass.BMR ~ bird_meta$Treatment*bird_meta$Timepoint + (1|bird_meta$ID))
+
+anova(model1_mass)
+
+ggplot(bird_meta, aes(x=Timepoint, y=Mass.BMR, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_SX_box_plot_bodyMass_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta, aes(x=Timepoint, y=Mass.BMR, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5 ) + ylab("Body mass prior to BMR measurement (g)") + theme_bw()
+dev.off()
+
+pairs(emmeans(model1_mass, ~Treatment*Timepoint), adjust="BH")
+
+```
+
+Yes, there is a significant effect of timepoint and timepoint*treatment on bird mass. Cold treatment birds increased their mass from week 0 to week 3, and between week 0 and week 6, but not between week 3 and week 6. 
+
+# BMR
+
+ Next, we want to test whether **BMR was different between the treatment groups at the start of the experiment**. We would expect there to be no significant difference. 
+
+```{r Confirm that BMR was not significantly different at start of experiment}
+#BMR 0wk
+# use lm instead of lmer b/c we do not have repeated measures of bird ID
+
+model_bmr_0wk<- lm(bird_meta_0wk$BMR~bird_meta_0wk$Treatment+bird_meta_0wk$Mass.BMR)
+
+qqnorm(resid(model_bmr_0wk))
+qqline(resid(model_bmr_0wk))
+
+anova(model_bmr_0wk) # no significant difference between treatment groups at week 0
+
+ggplot(bird_meta_0wk, aes(x=Timepoint, y=BMR, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+```
+
+We do not see a significant difference between treatment groups prior to the acclimation start. Now let's check for a **treatment effect on BMR across the 6-week acclimation**. 
+
+```{r Check for treatment effect on BMR using all timepoints}
+
+#BMR 0-6wk
+
+model1_bmr_all<- lmer(bird_meta$BMR~bird_meta$Mass.BMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID))
+
+# plot
+ggplot(bird_meta, aes(x=Timepoint, y=BMR.perGram, fill=Treatment)) + ylab("BMR (mL 02/min*g)") +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_SX_box_plot_BMR_perGram_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta, aes(x=Timepoint, y=BMR.perGram, fill=Treatment)) + ylab("BMR (mL 02/min*g)") +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+ggplot(bird_meta, aes(x=Timepoint, y=BMR, fill=Treatment)) + ylab("BMR (mL 02/min)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_1A_box_plot_BMR_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta, aes(x=Timepoint, y=BMR, fill=Treatment)) + ylab("BMR (mL 02/min)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+#Given that "model1_bmr" is the best model for BMR, we can check the residuals. 
+
+qqnorm(resid(model1_bmr_all))
+qqline(resid(model1_bmr_all))
+
+anova(model1_bmr_all)
+
+```
+
+We see a not-quite-significant effect of timepoint on BMR, but otherwise no significance. Is there a significant effect of treatment on BMR of birds at week 6? Once we account for mass it is not clear. 
+
+```{r Check for significant difference of BMR between treatments at Week 6}
+#BMR 6wk
+
+model_bmr_6wk<- lm(bird_meta_6wk$BMR~bird_meta_6wk$Treatment+bird_meta_6wk$Mass.BMR)
+
+qqnorm(resid(model_bmr_6wk))
+qqline(resid(model_bmr_6wk))
+
+anova(model_bmr_6wk) # significant effect of treatment and mass
+
+# will plot BMRperGram
+ggplot(bird_meta_6wk, aes(x=Timepoint, y=BMR.perGram, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+ggplot(bird_meta_6wk, aes(x=Timepoint, y=BMR, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+```
+At week 6, there is a significant effect of treatment and mass on measured BMR. 
+
+Let's also check model fit for BMR ~ Mass and BMR ~ Mass + Treatment*Timepoint
+
+```{r Test AICc of BMR models}
+
+AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + (1|bird_meta$ID)))
+AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + bird_meta$Sex + (1|bird_meta$ID)))
+AICc(model1_bmr_all)
+```
+
+
+# SMR
+
+Next, we will test whether there was a **significant difference in SMR of treatment groups prior to acclimation**. We would expect no difference. 
+
+```{r Confirm that VO2max was not significantly different at start of experiment}
+#VO2MAX 0wk
+
+model_smr_0wk<- lm(bird_meta_0wk$VO2max~bird_meta_0wk$Treatment+bird_meta_0wk$Mass.SMR)
+
+qqnorm(resid(model_smr_0wk))
+qqline(resid(model_smr_0wk))
+
+anova(model_smr_0wk) # no significant difference between treatment groups at week 0
+
+ggplot(bird_meta_0wk, aes(x=Timepoint, y=VO2max, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+```
+
+We do not detect a significant effect of treatment on SMR at week 0. Great! Now, let's test for an **effect of treatmentxtimepoint on SMR**.
+
+```{r Check for treatment effect on SMR}
+
+#VO2MAX 0-6wk
+
+model1_smr_all<- lmer(bird_meta$VO2max~bird_meta$Mass.SMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID))
+
+# plot
+ggplot(bird_meta, aes(x=Timepoint, y=VO2max, fill=Treatment)) +ylab("VO2max (ml O2 /min)")+
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_1B_box_plot_VO2max_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta, aes(x=Timepoint, y=VO2max, fill=Treatment)) + ylab("VO2max (ml O2 /min)") +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+ggplot(bird_meta, aes(x=Timepoint, y=VO2max.perGram, fill=Treatment)) + ylab("VO2max (ml O2 /min*g)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_SX_box_plot_VO2max_perGram_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta, aes(x=Timepoint, y=VO2max.perGram, fill=Treatment)) + ylab("VO2max (ml O2 /min*g)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+# Given that "model1_smr_all" is the best model for VO2max, we can check the residuals and determine model significance. 
+
+qqnorm(resid(model1_smr_all))
+qqline(resid(model1_smr_all))
+
+anova(model1_smr_all) # sig effect of treatment and timepoint, marginally sig. effect of mass
+
+pairs(emmeans(model1_smr_all, ~Treatment*Timepoint), adjust="BH")
+
+```
+
+Yes, we find a significant effect of treatment and timepoint on SMR. It seems as if cold treatment birds increase their SMR from week 0 to week 3 and maintain it. Is there a significant **difference in SMR between treatment groups at week 6**?
+
+```{r Check for significant difference between treatments at Week 6}
+#VO2MAX 6wk
+
+model_smr_6wk<- lm(bird_meta_6wk$VO2max~bird_meta_6wk$Treatment+bird_meta_6wk$Mass.SMR)
+
+qqnorm(resid(model_smr_6wk))
+qqline(resid(model_smr_6wk))
+
+anova(model_smr_6wk) # significant effect of treatment and mass
+
+ggplot(bird_meta_6wk, aes(x=Timepoint, y=VO2max, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+```
+
+Yes, there is a significant effect of treatment and mass on SMR at week 6. How about at week 3?
+
+```{r Check for significant difference between treatments at Week 3}
+#VO2MAX 3wk
+
+model_smr_3wk<- lm(bird_meta_3wk$VO2max~bird_meta_3wk$Treatment+bird_meta_3wk$Mass.SMR)
+
+qqnorm(resid(model_smr_3wk))
+qqline(resid(model_smr_3wk))
+
+anova(model_smr_3wk) # significant effect of treatment 
+
+ggplot(bird_meta_3wk, aes(x=Timepoint, y=VO2max, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+```
+
+Yes, there is a significant effect of treatment on SMR at week 3.  
+
+Let's test for which SMR model is the best fit. 
+
+```{r Test AICc of SMR models}
+
+AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + (1|bird_meta$ID)))
+AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + bird_meta$Sex + (1|bird_meta$ID)))
+AICc(model1_smr_all)
+
+```
+
+
+# Conductance
+
+Next, let's process the conductance data to calculate power.
+
+```{r Open and process individual conductance data files}
+shift <- function(x, n){
+  c(x[-(seq(n))], rep(NA, n))
+}
+
+Average_Power <- setNames(data.frame(matrix(ncol = 2, nrow = 14)), c("Sample", "Avg.Pwr"))
+#Average_Power
+#str(Average_Power)
+
+samples <- c("K1","K3","M1","M2","M4","M5","M6","M7","M8","M9","M10","M11","M12","M14")
+for (i in c(1:14)){ 
+  file_open <- read.csv(paste("~/Dropbox/chickadee_data/data_files/raw_thermal_conductance_files/",samples[i],".csv",sep=""))
+  colnames(file_open) <- c("Time","Voltage.V","Current.mA")
+  file_open$Current.mA <- shift(file_open$Current.mA, 1)
+  last_row <- dim(file_open)[1]
+  #print(last_row)
+  file_open <- file_open[-c(last_row),]
+  file_open$Power <- file_open$Voltage.V*file_open$Current.mA
+  write.csv(file_open, file=paste(samples[i],"_wPower.csv",sep=""),quote=FALSE,row.names=FALSE)
+  avg <- mean(file_open[1:1200,4])
+  Average_Power[i,1]<-samples[i]
+ Average_Power[i,2] <- avg
+}
+
+write.csv(Average_Power, file=paste("~/Dropbox/chickadee_data/data_files/Average_Power",run_date,".csv",sep=""),quote=FALSE,row.names=FALSE)
+
+```
+
+Let's now test for an **effect of room temperature or sampling date on conductance**, so we know whether we should include them in our models. 
+
+```{r Analyze differences in power aka thermal conductance}
+
+# Import room temperature data to add to models
+conductance_data <- read.csv("~/Dropbox/chickadee_data/data_files/Conductance_Trial_Data_simp_26Apr2022.csv")
+
+bird_meta_6wk_wCond <- merge(bird_meta_6wk,Average_Power,by.x="ID",by.y="Sample")
+bird_meta_6wk_wCond_final <- merge(bird_meta_6wk_wCond,conductance_data,by.x="ID",by.y="Sample_ID")
+
+# One heart measure for bird M8 was noted as perhaps not being tared properly before weighing, and mass is ~2x the size of all the other hearts. Will change to NA. 
+
+bird_meta_6wk_wCond_final[13,"Mass.Heart"] <- NA
+bird_meta_6wk_wCond_final[13,"Mass.Heart.perGram"] <- NA
+
+# Assess model fit
+
+# We will be using the "Avg.Pwr" column from our lastwk_data dataframe
+# IS there a sig effect of room temp or date on power?
+
+anova(lm(bird_meta_6wk_wCond_final$Avg.Pwr~bird_meta_6wk_wCond_final$Room_Temp)) # no significance (0.872)
+
+anova(lm(bird_meta_6wk_wCond_final$Avg.Pwr~bird_meta_6wk_wCond_final$Date)) # not significant (0.08)
+
+# b/c of marginal significance of date, test model fit including date or not. 
+
+model1_power<- lm(bird_meta_6wk_wCond_final$Avg.Pwr~bird_meta_6wk_wCond_final$Treatment)
+
+model2_power<- lm(bird_meta_6wk_wCond_final$Avg.Pwr~bird_meta_6wk_wCond_final$Treatment + bird_meta_6wk_wCond_final$Date)
+
+print(AICc(model1_power)) # lower AICc
+
+print(AICc(model2_power))
+
+# Assess significance for model1_power, the best model
+
+qqnorm(resid(model1_power))
+qqline(resid(model1_power))
+
+anova(model1_power) # no effect of treatment on power
+
+ggplot(bird_meta_6wk_wCond_final, aes(x=Treatment, y=Avg.Pwr, fill=Treatment)) + ylab("Average Power (mW, Volts*Amps)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_3_box_plot_power_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta_6wk_wCond_final, aes(x=Treatment, y=Avg.Pwr, fill=Treatment)) + ylab("Average Power (mW, Volts*Amps)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+```
+
+# Other phenotypes (Hb, RBC, heart mass)
+
+No significant effect of treatment or room temperature on power measurements. Is there a significant **effect of treatment on hemoglobin**?
+
+```{r Test effect of treatment on Hb}
+
+# no sig. effect of mass or sex on Hb
+anova(lm(bird_meta_6wk_wCond_final$Hb~bird_meta_6wk_wCond_final$Mass.SMR))
+anova(lm(bird_meta_6wk_wCond_final$Hb~bird_meta_6wk_wCond_final$Sex))
+
+model1_hb<- lm(bird_meta_6wk_wCond_final$Hb~bird_meta_6wk_wCond_final$Treatment)
+
+qqnorm(resid(model1_hb))
+qqline(resid(model1_hb))
+
+anova(model1_hb)
+```
+
+No effect of treatment on Hb. Is there a significant **effect of treatment on RBC**?
+
+```{r Test effect of treatment on RBC}
+
+# no sig. effect of mass or sex on % RBC
+anova(lm(bird_meta_6wk_wCond_final$PercRBC~bird_meta_6wk_wCond_final$Mass.SMR))
+anova(lm(bird_meta_6wk_wCond_final$PercRBC~bird_meta_6wk_wCond_final$Sex))
+
+model1_rbc<- lm(bird_meta_6wk_wCond_final$PercRBC~bird_meta_6wk_wCond_final$Treatment)
+
+qqnorm(resid(model1_rbc))
+qqline(resid(model1_rbc))
+
+anova(model1_rbc)
+```
+
+No significant effect of treatment on RBC. Is there a significant **effect of treatment on heart mass**?
+
+```{r Test effect of treatment on heart mass}
+
+# no sig. effect of body mass on heart mass, but sig. effect of sex
+
+anova(lm(bird_meta_6wk_wCond_final$Mass.Heart~bird_meta_6wk_wCond_final$Mass.SMR))
+anova(lm(bird_meta_6wk_wCond_final$Mass.Heart~bird_meta_6wk_wCond_final$Sex))
+
+model1_heart<- lm(bird_meta_6wk_wCond_final$Mass.Heart~bird_meta_6wk_wCond_final$Treatment+bird_meta_6wk_wCond_final$Sex)
+model2_heart<- lm(bird_meta_6wk_wCond_final$Mass.Heart~bird_meta_6wk_wCond_final$Treatment)
+
+AICc(model1_heart)
+AICc(model2_heart)
+
+qqnorm(resid(model1_heart))
+qqline(resid(model1_heart))
+
+anova(model1_heart)
+
+```
+
+No effect of treatment on heart mass, but effect of sex on heart mass. 
+
+# QMR 
+
+Now let's look at the QMR data. 
+
+```{r Analyze characteristics of QMR data}
+
+qmr_raw<- read.csv("~/Dropbox/chickadee_data/data_files/qmr_extractedResults_for_R.csv")
+
+# isolate standards
+standards<- qmr_raw[qmr_raw$Expected!="Sample",]
+# standards<- standards[standards$RecNumber!=c(88:90),]
+standards$Expected<- as.numeric(standards$Expected)
+
+standards_2<- standards[standards$Expected==2.0,]
+standards_5<- standards[standards$Expected==5.0,]
+standards_15<- standards[standards$Expected==15.3,]
+
+# Plot the standards before and after measurements
+ggplot(standards_2, aes(x=Stage, y=Fat,)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+ggplot(standards_5, aes(x=Stage, y=Fat,)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+ggplot(standards_15, aes(x=Stage, y=Fat,)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+# Do we need to take into account differences in standard measurements before and after? Short answer, yes. 
+
+model1_fat<- lm(Fat~Expected,data=standards)
+model2_fat<- lm(Fat~Expected+Date,data=standards)
+model3_fat<- lm(Fat~Expected+Date+Stage, data=standards)
+
+AICc(model1_fat)
+AICc(model2_fat)
+AICc(model3_fat) #lowest AICc
+
+summary(model3_fat)
+
+anova(model3_fat)
+
+```
+
+The initial analysis of the QMR standards data suggests that there are significant effects of date and stage (before/after) on the measured fat, so we need to account for that.
+
+```{r Adjust QMR data for each measurement data}
+
+dates<- unique(as.list(standards$Date))
+
+corrected_qmr <- data.frame()
+counter = 1
+
+bird_meta$Label <- paste(bird_meta$ID,bird_meta$Timepoint, sep = "_") # make sure labels line up for meta & qmr
+
+## FOR LOOP ##
+for(i in dates) {
+  
+  # get qmr data for the day
+  qmr_day <- filter(qmr_raw, Date == i)
+  
+  qmr_day_standards <- filter(qmr_day, Expected != "Sample")
+  qmr_day_standards$Expected <- as.numeric(qmr_day_standards$Expected)
+  
+  ## Generate model off of refined df 
+  model <- lm(Fat~Expected,data=qmr_day_standards)
+  
+   # B     
+  coef_b <- coef(summary(model))["(Intercept)","Estimate"]
+  
+  # M
+  coef_m <- coef(summary(model))["Expected","Estimate"] 
+  
+  # For loop to iterate over qmr data to add the day's standard model
+  #Figure out how to make the formula include the days standard coefficients 
+  for(row in 1:nrow(qmr_day)) {
+    qmr_day$fat_corrected[row] =  (qmr_day$Fat[row]-coef_b)/coef_m# FORUMLA FOR FAT CORRECTED
+  }
+  
+  aggregate(fat_corrected ~ Label, data=qmr_day,mean)
+  
+  # bind (append) df
+  corrected_qmr <- rbind(corrected_qmr, qmr_day)
+  
+} # Exit for loop 
+
+qmr_means <- aggregate(fat_corrected ~ Label, data=corrected_qmr,mean)
+qmr_means$lean_mean <- aggregate(Lean ~ Label, data=corrected_qmr,mean)[,2]
+qmr_means$freewater_mean <- aggregate(FreeWater ~ Label, data=corrected_qmr,mean)[,2]
+qmr_means$totalwater_mean <- aggregate(TotalWater ~ Label, data=corrected_qmr,mean)[,2]
+
+qmr_means<- head(qmr_means, 42) # remove the standards
+
+for (i in c(1:42)){
+  if (qmr_means[i,"fat_corrected"] < 0){ # if values are negative
+    qmr_means[i,"fat_corrected"] <- 0 # set values to 0
+  }
+}
+
+colnames(qmr_means) <- c("Label","fat_corrected_mean", "lean_mean", "freewater_mean", "totalwater_mean")
+
+bird_meta_qmr<- merge(bird_meta, qmr_means, by= "Label", all.x = TRUE)
+
+bird_meta_qmr$perc_lean_mean<- (bird_meta_qmr$lean_mean/bird_meta_qmr$Mass.SMR)
+
+bird_meta_qmr$perc_fat_corrected_mean<- (bird_meta_qmr$fat_corrected_mean/bird_meta_qmr$Mass.SMR)
+
+```
+
+Next, we test for significant **effect of treatment on overall fat**. 
+
+```{r Test effects of treatment on fat}
+
+# unsurprisingly, there is a very large effect of bird mass on fat value.
+anova(lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Mass.SMR +(1|bird_meta_qmr$ID)))
+
+model1_fatC<- lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Mass.SMR+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+
+qqnorm(resid(model1_fatC)) 
+qqline(resid(model1_fatC))
+
+anova(model1_fatC)
+
+ggplot(bird_meta_qmr, aes(x=Timepoint, y=fat_corrected_mean, fill=Treatment)) + ylab("Total Fat Mass (g)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+
+pdf(file=paste("Figure_SX_box_plot_QMR_fat_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta_qmr, aes(x=Timepoint, y=fat_corrected_mean, fill=Treatment)) + ylab("Total Fat Mass (g)") + 
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + theme_bw()
+dev.off()
+
+```
+
+There does not seem to be any significant effect of treatment or time point on fat mass, although there is an effect of bird mass on fat mass. Is there an effect of **treatment on lean mass**?  
+
+```{r  Test effects of treatment on lean mass}
+
+# unsurprisingly, there is a very large effect of bird mass on lean mass.
+anova(lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Mass.SMR +(1|bird_meta_qmr$ID)))
+
+model1_leanC<- lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Mass.SMR+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+
+qqnorm(resid(model1_leanC)) 
+qqline(resid(model1_leanC))
+
+anova(model1_leanC) # sig. mass, timepoint, and timepointxtreatment
+
+pairs(emmeans(model1_leanC, ~Treatment*Timepoint), adjust="BH")
+
+ggplot(bird_meta_qmr, aes(x=Timepoint, y=lean_mean, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + ylab("Lean Mass (g)") + theme_bw()
+
+pdf(file=paste("Figure_2_box_plot_QMR_lean_",run_date,".pdf",sep=""),height=6,width=8)
+ggplot(bird_meta_qmr, aes(x=Timepoint, y=lean_mean, fill=Treatment)) +
+  geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
+  position=position_dodge(1), dotsize = 0.5) + ylab("Lean Mass (g)") + theme_bw()
+dev.off()
+
+```
+
+We find a significant effect of body mass, timepoint, and timepointxtreatment on lean mass. It seems as if birds are increasing their fat mas from 3 to 6 weeks (although only marginally significant). 
+
+# Trait correlations
+
+What are the correlations amongst phenotypes?
+
+```{r correlations between phenotypes}
+
+cor.test(bird_meta$BMR, bird_meta$VO2max) # uncorrected values are sig. (0.0356) correlated (0.3252083),  
+cor.test(bird_meta$BMR.perGram, bird_meta$VO2max.perGram) # but mass-corrected values are not (0.5335, 0.09883)
+cor.test(bird_meta_qmr$VO2max,bird_meta_qmr$lean_mean) # sig at 0.001947, 0.464397 cor
+cor.test(bird_meta_qmr$VO2max,bird_meta_qmr$fat_corrected_mean) # not sig at 0.0797, 0.2734774 cor
+cor.test(bird_meta_qmr$BMR,bird_meta_qmr$lean_mean) # sig at 0.005911, 0.4177394 cor
+
+```
+
+We find that BMR and SMR are sig. correlated with no mass correction, but are not sig. correlated on a per gram measure. 
+We also find that lean mass is highly sig. correlated with SMR and with BMR. 
+Overall fat is not significantly correlated with SMR, although it is marginal. 
+
+
