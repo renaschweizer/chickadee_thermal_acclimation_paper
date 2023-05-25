@@ -26,7 +26,7 @@ library(dplyr)
 setwd("~/Dropbox/chickadee_data/analysis_for_pub")
 
 # load in meta data with information for each sample
-bird_meta <- read.csv("~/Dropbox/chickadee_data/data_files/Respirometry_Metadata_simp_17Nov2021.csv")
+bird_meta <- read.csv("~/Dropbox/chickadee_data/data_files/Respirometry_Metadata_simp_26Apr2023.csv")
 
 # made data subsets for each time point
 bird_meta_0wk<- bird_meta[bird_meta$Timepoint=="0wk",]
@@ -166,9 +166,19 @@ Let's also check model fit for BMR ~ Mass and BMR ~ Mass + Treatment*Timepoint
 
 ```{r Test AICc of BMR models}
 
-AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + (1|bird_meta$ID)))
-AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + bird_meta$Sex + (1|bird_meta$ID)))
-AICc(model1_bmr_all)
+#AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + (1|bird_meta$ID)))
+#AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + bird_meta$Sex + (1|bird_meta$ID)))
+#AICc(lmer(bird_meta$BMR~bird_meta$Mass.BMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID)))
+
+#AICc(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+#AICc(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+#AICc(lmer(bird_meta_qmr$BMR~ bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID)))
+
+#anova(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+#anova(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+#anova(lmer(bird_meta_qmr$BMR~ bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID)))
+
+
 ```
 
 
@@ -273,9 +283,39 @@ Let's test for which SMR model is the best fit.
 
 ```{r Test AICc of SMR models}
 
-AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + (1|bird_meta$ID)))
-AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + bird_meta$Sex + (1|bird_meta$ID)))
-AICc(model1_smr_all)
+#AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + (1|bird_meta$ID)))
+#AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + bird_meta$Sex + (1|bird_meta$ID)))
+#AICc(model1_smr_all) # lmer(bird_meta$VO2max~bird_meta$Mass.SMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID))
+
+#AICc(lmer(bird_meta_qmr$VO2max ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+#AICc(lmer(bird_meta_qmr$VO2max ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+#AICc(lmer(bird_meta_qmr$VO2max~bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))) # 
+
+```
+
+We will also calculate the mean loss of body temperature during SMR trials, and whether there is a difference between treatment groups. We also assess mean time in trial for different groups. 
+
+```{r Calc difference in body temp & time in trial}
+mean(bird_meta$Diff.Tb,na.rm=TRUE)
+
+temp_diff_control <- bird_meta[bird_meta$Treatment=="Control",c("ID","Treatment","Timepoint","Diff.Tb")]
+mean(temp_diff_control$Diff.Tb,na.rm=TRUE) # -8.322222
+
+temp_diff_cold <- bird_meta[bird_meta$Treatment=="Cold",c("ID","Treatment","Timepoint","Diff.Tb")]
+mean(temp_diff_cold$Diff.Tb,na.rm=TRUE) # -7.56875
+
+temp_diff_model <- lm(bird_meta$Diff.Tb~bird_meta$Treatment)
+
+anova(temp_diff_model)
+
+# time in trials
+
+bird_meta$VO2max.trial.duration <- bird_meta$EndVo2max - bird_meta$Animal.in.VO2max.trial
+mean(bird_meta$VO2max.trial.duration,na.rm=TRUE)/60 # 13.6083 min
+
+hypo <- subset(bird_meta,bird_meta$Timepoint!="0wk")
+
+mean(hypo$VO2max.trial.duration)/60 # 12.17143 min
 
 ```
 
@@ -534,19 +574,51 @@ bird_meta_qmr$perc_fat_corrected_mean<- (bird_meta_qmr$fat_corrected_mean/bird_m
 
 ```
 
-Next, we test for significant **effect of treatment on overall fat**. 
+Now that we have the QMR data processed, we can use lean mass in our models for BMR and SMR. 
+
+```{r Test AICc of BMR and SMR models with lean mass instead of total body mass}
+AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + (1|bird_meta$ID)))
+AICc(lmer(bird_meta$BMR ~ bird_meta$Mass.BMR + bird_meta$Sex + (1|bird_meta$ID)))
+AICc(lmer(bird_meta$BMR~bird_meta$Mass.BMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID)))
+
+AICc(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+AICc(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+AICc(lmer(bird_meta_qmr$BMR~ bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID)))
+
+anova(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+anova(lmer(bird_meta_qmr$BMR ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+anova(lmer(bird_meta_qmr$BMR~ bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID)))
+
+AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + (1|bird_meta$ID)))
+AICc(lmer(bird_meta$VO2max ~ bird_meta$Mass.SMR + bird_meta$Sex + (1|bird_meta$ID)))
+AICc(model1_smr_all) # lmer(bird_meta$VO2max~bird_meta$Mass.SMR+bird_meta$Treatment*bird_meta$Timepoint+(1|bird_meta$ID))
+
+AICc(lmer(bird_meta_qmr$VO2max ~ bird_meta_qmr$lean_mean + (1|bird_meta_qmr$ID)))
+AICc(lmer(bird_meta_qmr$VO2max ~ bird_meta_qmr$lean_mean + bird_meta_qmr$Sex + (1|bird_meta_qmr$ID)))
+AICc(lmer(bird_meta_qmr$VO2max~bird_meta_qmr$lean_mean+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))) # 
+```
+
+
+Next, we test for significant **effect of treatment on overall fat**. We do not include body mass as a covariate in these models since it is not independent of lean mass.
 
 ```{r Test effects of treatment on fat}
 
 # unsurprisingly, there is a very large effect of bird mass on fat value.
 anova(lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Mass.SMR +(1|bird_meta_qmr$ID)))
 
-model1_fatC<- lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Mass.SMR+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+model1_fatC<- lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
 
 qqnorm(resid(model1_fatC)) 
 qqline(resid(model1_fatC))
 
 anova(model1_fatC)
+
+model2_fatC<- lmer(bird_meta_qmr$fat_corrected_mean~bird_meta_qmr$Sex + bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+
+qqnorm(resid(model2_fatC)) 
+qqline(resid(model2_fatC))
+
+anova(model2_fatC)
 
 ggplot(bird_meta_qmr, aes(x=Timepoint, y=fat_corrected_mean, fill=Treatment)) + ylab("Total Fat Mass (g)") + 
   geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
@@ -558,23 +630,37 @@ ggplot(bird_meta_qmr, aes(x=Timepoint, y=fat_corrected_mean, fill=Treatment)) + 
   position=position_dodge(1), dotsize = 0.5) + theme_bw()
 dev.off()
 
+AICc(model1_fatC)
+
+AICc(model2_fatC)
+
 ```
 
-There does not seem to be any significant effect of treatment or time point on fat mass, although there is an effect of bird mass on fat mass. Is there an effect of **treatment on lean mass**?  
+There does not seem to be any significant effect of treatment, time point, or sex on fat mass, although there is an effect of bird mass on fat mass. Is there an effect of **treatment on lean mass**? We do not include body mass as a covariate in these models since it is not independent of lean mass.   
 
 ```{r  Test effects of treatment on lean mass}
 
 # unsurprisingly, there is a very large effect of bird mass on lean mass.
 anova(lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Mass.SMR +(1|bird_meta_qmr$ID)))
 
-model1_leanC<- lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Mass.SMR+bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+model1_leanC<- lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
 
 qqnorm(resid(model1_leanC)) 
 qqline(resid(model1_leanC))
 
-anova(model1_leanC) # sig. mass, timepoint, and timepointxtreatment
+anova(model1_leanC) # sig. timepoint, and timepointxtreatment
 
-pairs(emmeans(model1_leanC, ~Treatment*Timepoint), adjust="BH")
+model2_leanC<- lmer(bird_meta_qmr$lean_mean~bird_meta_qmr$Sex + bird_meta_qmr$Treatment*bird_meta_qmr$Timepoint+(1|bird_meta_qmr$ID))
+
+qqnorm(resid(model2_leanC)) 
+qqline(resid(model2_leanC))
+
+anova(model2_leanC) # sig. mass, timepoint, and timepointxtreatment
+
+AICc(model1_leanC) # 29.26664
+AICc(model2_leanC) # 22.61457
+
+pairs(emmeans(model2_leanC, ~Treatment*Timepoint), adjust="BH")
 
 ggplot(bird_meta_qmr, aes(x=Timepoint, y=lean_mean, fill=Treatment)) +
   geom_boxplot(outlier.shape = NA) + scale_fill_manual(values=c("#1E90FF", "#CD2626")) +  geom_dotplot(binaxis='y', stackdir='center',
@@ -588,7 +674,7 @@ dev.off()
 
 ```
 
-We find a significant effect of body mass, timepoint, and timepointxtreatment on lean mass. It seems as if birds are increasing their fat mas from 3 to 6 weeks (although only marginally significant). 
+We find a significant effect of body mass, timepoint, sex, and timepointxtreatment on lean mass. It seems as if birds in the cold treatment are increasing their fat mass from 0 to 6 weeks and from 3 to 6 weeks. 
 
 # Trait correlations
 
@@ -599,6 +685,7 @@ What are the correlations amongst phenotypes?
 cor.test(bird_meta$BMR, bird_meta$VO2max) # uncorrected values are sig. (0.0356) correlated (0.3252083),  
 cor.test(bird_meta$BMR.perGram, bird_meta$VO2max.perGram) # but mass-corrected values are not (0.5335, 0.09883)
 cor.test(bird_meta_qmr$VO2max,bird_meta_qmr$lean_mean) # sig at 0.001947, 0.464397 cor
+cor.test(bird_meta_qmr$Mass.SMR,bird_meta_qmr$lean_mean) # sig at 1.991e-14, 0.8787999 cor
 cor.test(bird_meta_qmr$VO2max,bird_meta_qmr$fat_corrected_mean) # not sig at 0.0797, 0.2734774 cor
 cor.test(bird_meta_qmr$BMR,bird_meta_qmr$lean_mean) # sig at 0.005911, 0.4177394 cor
 
@@ -607,5 +694,3 @@ cor.test(bird_meta_qmr$BMR,bird_meta_qmr$lean_mean) # sig at 0.005911, 0.4177394
 We find that BMR and SMR are sig. correlated with no mass correction, but are not sig. correlated on a per gram measure. 
 We also find that lean mass is highly sig. correlated with SMR and with BMR. 
 Overall fat is not significantly correlated with SMR, although it is marginal. 
-
-
